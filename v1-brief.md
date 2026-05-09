@@ -27,7 +27,7 @@ Off-the-shelf apps treat these as user errors. This one treats them as design pr
 
 1. **Aspirations and tasks are different objects.** "Learn piano" is a goal that *generates* tasks (research digital pianos, find a teacher), not a task itself. Type is explicit at capture, or guessed and confirmed.
 2. **Brain-dump in, structure out.** You type "piano/guitar" — the system asks one clarifying question ("Goal, or next action?") and shapes it.
-3. **Categories for awareness, not just filtering.** Career / Finances / Health / Hobbies / Social / Home. The home view shows attention distribution across them.
+3. **Categories for awareness, not just filtering.** Career/Work / Finances / Health / Hobbies/Interests / Social / Home / Family / Personal Growth. The home view shows attention distribution across them.
 4. **No-deadline tasks have a heartbeat.** "Custom bookshelf" re-surfaces every couple of weeks on its own. Visible without being overdue.
 5. **Multiple lives are first-class.** A lens switcher between You and Mom. Same app, different worlds, separate data.
 6. **"Awaiting" is a first-class state.** Many tasks aren't done when you mark them done — they're waiting on someone or something. The system models this explicitly: who you're waiting on, when to nudge you if nothing moves, and what the branching next steps are when input arrives. The system carries the *thread*, not just the *step*.
