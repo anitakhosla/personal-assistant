@@ -6,3 +6,4 @@ A 30-day build of a personal task system.
 
 - **Day 0** - setup complete (repo, VS Code, Git, GitHub CLI all wired up)
 - **Day 1** - first index.html: page title and three colored category boxes (Career, Health, Hobbies), no interactivity yet
+- **Day 2** - all six categories on the page; first JS — text input + Add button appends typed tasks under Career

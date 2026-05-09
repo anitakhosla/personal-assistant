@@ -18,6 +18,30 @@
         font-size: 1.75rem;
       }
 
+      .capture {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .capture input {
+        flex: 1;
+        padding: 0.75rem;
+        font-size: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+      }
+
+      .capture button {
+        padding: 0.75rem 1.25rem;
+        font-size: 1rem;
+        background: #222;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
       .categories {
         display: flex;
         flex-direction: column;
@@ -31,31 +55,83 @@
       }
 
       .category h2 {
-        margin: 0;
+        margin: 0 0 0.75rem 0;
         font-size: 1.25rem;
       }
 
-      .career  { background: #2b6cb0; }
-      .health  { background: #2f855a; }
-      .hobbies { background: #b7791f; }
+      .category ul {
+        margin: 0;
+        padding-left: 1.25rem;
+      }
+
+      .category li {
+        margin: 0.25rem 0;
+      }
+
+      .career   { background: #2b6cb0; }
+      .health   { background: #2f855a; }
+      .hobbies  { background: #b7791f; }
+      .finances { background: #0e7490; }
+      .social   { background: #be185d; }
+      .home     { background: #6d28d9; }
     </style>
   </head>
 
   <body>
     <h1>Personal Assistant</h1>
 
+    <div class="capture">
+      <input id="task-input" type="text" placeholder="What's on your mind?" />
+      <button id="add-button">Add</button>
+    </div>
+
     <div class="categories">
       <div class="category career">
         <h2>Career</h2>
+        <ul id="career-list"></ul>
       </div>
 
       <div class="category health">
         <h2>Health</h2>
+        <ul></ul>
       </div>
 
       <div class="category hobbies">
         <h2>Hobbies</h2>
+        <ul></ul>
+      </div>
+
+      <div class="category finances">
+        <h2>Finances</h2>
+        <ul></ul>
+      </div>
+
+      <div class="category social">
+        <h2>Social</h2>
+        <ul></ul>
+      </div>
+
+      <div class="category home">
+        <h2>Home</h2>
+        <ul></ul>
       </div>
     </div>
+
+    <script>
+      const input = document.querySelector("#task-input");
+      const button = document.querySelector("#add-button");
+      const careerList = document.querySelector("#career-list");
+
+      button.addEventListener("click", () => {
+        const text = input.value.trim();
+        if (text === "") return;
+
+        const item = document.createElement("li");
+        item.textContent = text;
+        careerList.appendChild(item);
+
+        input.value = "";
+      });
+    </script>
   </body>
 </html>
