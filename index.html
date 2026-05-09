@@ -32,6 +32,14 @@
         border-radius: 6px;
       }
 
+      .capture select {
+        padding: 0.75rem;
+        font-size: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        background: white;
+      }
+
       .capture button {
         padding: 0.75rem 1.25rem;
         font-size: 1rem;
@@ -84,6 +92,16 @@
 
     <div class="capture">
       <input id="task-input" type="text" placeholder="What's on your mind?" />
+      <select id="category-select" aria-label="Category">
+        <option value="career">Career/Work</option>
+        <option value="health">Health</option>
+        <option value="hobbies">Hobbies/Interests</option>
+        <option value="finances">Finances</option>
+        <option value="social">Social</option>
+        <option value="home">Home</option>
+        <option value="family">Family</option>
+        <option value="growth">Personal Growth</option>
+      </select>
       <button id="add-button">Add</button>
     </div>
 
@@ -95,55 +113,130 @@
 
       <div class="category health">
         <h2>Health</h2>
-        <ul></ul>
+        <ul id="health-list"></ul>
       </div>
 
       <div class="category hobbies">
         <h2>Hobbies/Interests</h2>
-        <ul></ul>
+        <ul id="hobbies-list"></ul>
       </div>
 
       <div class="category finances">
         <h2>Finances</h2>
-        <ul></ul>
+        <ul id="finances-list"></ul>
       </div>
 
       <div class="category social">
         <h2>Social</h2>
-        <ul></ul>
+        <ul id="social-list"></ul>
       </div>
 
       <div class="category home">
         <h2>Home</h2>
-        <ul></ul>
+        <ul id="home-list"></ul>
       </div>
 
       <div class="category family">
         <h2>Family</h2>
-        <ul></ul>
+        <ul id="family-list"></ul>
       </div>
 
       <div class="category growth">
         <h2>Personal Growth</h2>
-        <ul></ul>
+        <ul id="growth-list"></ul>
       </div>
     </div>
 
     <script>
+      const CATEGORIES = [
+        "career",
+        "health",
+        "hobbies",
+        "finances",
+        "social",
+        "home",
+        "family",
+        "growth",
+      ];
+
+      const STORAGE_KEY = "personal-assistant.tasks.v1";
+      const STORAGE_VERSION = 1;
+
+      function newId() {
+        if (typeof crypto !== "undefined" && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      }
+
       const input = document.querySelector("#task-input");
+      const categorySelect = document.querySelector("#category-select");
       const button = document.querySelector("#add-button");
-      const careerList = document.querySelector("#career-list");
+
+      const tasks = [];
+
+      function load() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") return;
+          if (parsed.version !== STORAGE_VERSION) {
+            console.warn(`Ignoring stored data with version ${parsed.version}`);
+            return;
+          }
+          if (!Array.isArray(parsed.tasks)) return;
+          const valid = parsed.tasks.filter(
+            (t) =>
+              t &&
+              typeof t.text === "string" &&
+              CATEGORIES.includes(t.category),
+          );
+          tasks.push(...valid);
+        } catch (e) {
+          console.error("Failed to load tasks from localStorage", e);
+        }
+      }
+
+      function save() {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ version: STORAGE_VERSION, tasks }),
+        );
+      }
+
+      function render() {
+        for (const slug of CATEGORIES) {
+          document.querySelector(`#${slug}-list`).innerHTML = "";
+        }
+        for (const task of tasks) {
+          const list = document.querySelector(`#${task.category}-list`);
+          if (!list) continue;
+          const item = document.createElement("li");
+          item.textContent = task.text;
+          list.appendChild(item);
+        }
+      }
 
       button.addEventListener("click", () => {
         const text = input.value.trim();
         if (text === "") return;
 
-        const item = document.createElement("li");
-        item.textContent = text;
-        careerList.appendChild(item);
+        tasks.push({
+          id: newId(),
+          text,
+          category: categorySelect.value,
+          createdAt: new Date().toISOString(),
+          lens: "you",
+        });
 
         input.value = "";
+        save();
+        render();
       });
+
+      load();
+      render();
     </script>
   </body>
 </html>
