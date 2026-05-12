@@ -74,6 +74,42 @@
 
       .category li {
         margin: 0.25rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .task-text {
+        flex: 1;
+        cursor: text;
+      }
+
+      .task-edit {
+        flex: 1;
+        padding: 0.25rem 0.5rem;
+        border: none;
+        border-radius: 4px;
+        font: inherit;
+        background: rgba(255, 255, 255, 0.92);
+        color: #222;
+      }
+
+      .delete-btn {
+        background: transparent;
+        color: rgba(255, 255, 255, 0.7);
+        border: none;
+        border-radius: 4px;
+        padding: 0 0.5rem;
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+      }
+
+      .delete-btn:hover,
+      .delete-btn:focus-visible {
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+        outline: none;
       }
 
       .career   { background: #2b6cb0; }
@@ -212,13 +248,26 @@
         for (const task of tasks) {
           const list = document.querySelector(`#${task.category}-list`);
           if (!list) continue;
+
           const item = document.createElement("li");
-          item.textContent = task.text;
+          item.dataset.id = task.id;
+
+          const textSpan = document.createElement("span");
+          textSpan.className = "task-text";
+          textSpan.textContent = task.text;
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.className = "delete-btn";
+          deleteBtn.setAttribute("aria-label", "Delete task");
+          deleteBtn.textContent = "×";
+
+          item.appendChild(textSpan);
+          item.appendChild(deleteBtn);
           list.appendChild(item);
         }
       }
 
-      button.addEventListener("click", () => {
+      function addTask() {
         const text = input.value.trim();
         if (text === "") return;
 
@@ -233,6 +282,95 @@
         input.value = "";
         save();
         render();
+      }
+
+      function startEdit(li, id, textSpan) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return;
+
+        const editInput = document.createElement("input");
+        editInput.type = "text";
+        editInput.className = "task-edit";
+        editInput.value = task.text;
+
+        li.replaceChild(editInput, textSpan);
+        editInput.focus();
+        editInput.select();
+
+        let done = false;
+
+        function restoreSpan() {
+          const newSpan = document.createElement("span");
+          newSpan.className = "task-text";
+          newSpan.textContent = task.text;
+          editInput.replaceWith(newSpan);
+        }
+
+        function commit() {
+          if (done) return;
+          done = true;
+          const newText = editInput.value.trim();
+          // Empty edit reverts to original text (treat as cancel, not delete).
+          if (newText && newText !== task.text) {
+            task.text = newText;
+            save();
+          }
+          restoreSpan();
+        }
+
+        function cancel() {
+          if (done) return;
+          done = true;
+          restoreSpan();
+        }
+
+        editInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        });
+
+        editInput.addEventListener("blur", commit);
+      }
+
+      const categoriesEl = document.querySelector(".categories");
+
+      categoriesEl.addEventListener("click", (e) => {
+        const li = e.target.closest("li[data-id]");
+        if (!li) return;
+        const id = li.dataset.id;
+
+        if (e.target.classList.contains("delete-btn")) {
+          const task = tasks.find((t) => t.id === id);
+          if (!task) return;
+          const preview =
+            task.text.length > 80 ? task.text.slice(0, 77) + "..." : task.text;
+          if (!confirm(`Delete: "${preview}"?`)) return;
+          const idx = tasks.findIndex((t) => t.id === id);
+          if (idx !== -1) {
+            tasks.splice(idx, 1);
+            save();
+            render();
+          }
+          return;
+        }
+
+        if (e.target.classList.contains("task-text")) {
+          startEdit(li, id, e.target);
+        }
+      });
+
+      button.addEventListener("click", addTask);
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addTask();
+        }
       });
 
       load();
