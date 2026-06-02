@@ -2,9 +2,9 @@
 
 ## What this is
 
-A 30-day build of a personal task system. The full spec is in `v1-brief.md` — read it first.
+A personal task system built in value-delivering phases over ~2–4 weeks. The full spec is in `v1-brief.md` — read it first.
 
-The user (Anita) is a product person who is brand new to coding. She has chosen this project to (a) build the daily-shipping habit, and (b) practice the meta-skill of product-managing AI builders. Default Claude Code session = the Builder.
+The user (Anita) is a product person who is brand new to coding. She has chosen this project to (a) build something genuinely useful to her, (b) build the daily-shipping habit, and (c) practice the meta-skill of product-managing AI builders. Default Claude Code session = the Builder.
 
 ## The agent team
 
@@ -27,8 +27,8 @@ Anita is editor-in-chief. She directs work, reviews, and decides. You (Builder) 
 
 **Daily cadence**
 - Each build day ends with: a commit AND a one-line entry in `README.md` under "Daily log"
-- Commit message format: `Day N: <what shipped>`
-- Daily log entry: `- **Day N** — <one-line summary>`
+- Commit message format: `<Phase N>: <what shipped>` (e.g., `Phase 1: add Task model`)
+- Daily log entry: `- **<date>** — <one-line summary>`
 
 **Required handoffs**
 - **Before any commit:** invoke `critic` to review the diff. Surface its findings to Anita; she decides what to act on.
@@ -41,16 +41,17 @@ Anita is editor-in-chief. She directs work, reviews, and decides. You (Builder) 
 - Don't pad. She'll ask if she needs more.
 - Type code yourself, then walk her through it after — don't make her wait.
 
-## Day cadence (rough)
+## Phased delivery
 
-- Days 1–5: Scaffold and shell — page structure, six categories, basic layout
-- Days 6–10: Brain-dump capture + AI parsing layer (Claude API integration)
-- Days 11–15: Ambient vs. dated tasks + categories with balance view
-- Days 16–20: "Awaiting" state + lens switching (You / Mom)
-- Days 21–25: Polish, mobile-responsive, real use begins
-- Days 26–30: External feedback round + iterate + ship
+See the "Phased delivery" section of `v1-brief.md` — it is the source of truth. The brief was revised after a direction-reset design sprint; any earlier daily-countdown framing is obsolete.
 
-This is a guide, not a contract. The pm agent revises as we go.
+Summary of the four phases:
+1. **Foundation** — data model + persistence + manual CRUD + brain-dump capture (end: a working capture-and-track tool)
+2. **AI suggestion engine** — Today view + intent/chips + reasoning lines + swap-one + history (end: a real morning ritual)
+3. **Match real life** — awaiting state + lens switching + ambient re-surfacing (end: feature-complete for v1)
+4. **Feel right and use it** — mobile-responsive + visual design + daily use + one external user (end: you want to look at it, you're using it daily)
+
+Each phase must end in something usable. The PM agent guards this. If a phase is closing without delivered value, the PM raises it.
 
 ## Secret hygiene
 
