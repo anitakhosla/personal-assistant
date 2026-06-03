@@ -50,33 +50,34 @@
         cursor: pointer;
       }
 
-      .categories {
+      #task-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.5rem;
       }
 
-      .category {
-        padding: 1.5rem;
-        border-radius: 8px;
-        color: white;
-      }
-
-      .category h2 {
-        margin: 0 0 0.75rem 0;
-        font-size: 1.25rem;
-      }
-
-      .category ul {
-        margin: 0;
-        padding-left: 1.25rem;
-      }
-
-      .category li {
-        margin: 0.25rem 0;
+      #task-list li {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
+        background: white;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        border: 1px solid #e5e5e5;
+      }
+
+      .task-category {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #666;
+        background: #f0f0f0;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        white-space: nowrap;
       }
 
       .task-text {
@@ -87,16 +88,16 @@
       .task-edit {
         flex: 1;
         padding: 0.25rem 0.5rem;
-        border: none;
+        border: 1px solid #ccc;
         border-radius: 4px;
         font: inherit;
-        background: rgba(255, 255, 255, 0.92);
+        background: white;
         color: #222;
       }
 
       .delete-btn {
         background: transparent;
-        color: rgba(255, 255, 255, 0.7);
+        color: #999;
         border: none;
         border-radius: 4px;
         padding: 0 0.5rem;
@@ -107,19 +108,10 @@
 
       .delete-btn:hover,
       .delete-btn:focus-visible {
-        background: rgba(0, 0, 0, 0.25);
-        color: #fff;
+        background: #f0f0f0;
+        color: #222;
         outline: none;
       }
-
-      .career   { background: #2b6cb0; }
-      .health   { background: #2f855a; }
-      .hobbies  { background: #b7791f; }
-      .finances { background: #0e7490; }
-      .social   { background: #be185d; }
-      .home     { background: #6d28d9; }
-      .family   { background: #9f1239; }
-      .growth   { background: #475569; }
     </style>
   </head>
 
@@ -128,75 +120,29 @@
 
     <div class="capture">
       <input id="task-input" type="text" placeholder="What's on your mind?" />
-      <select id="category-select" aria-label="Category">
-        <option value="career">Career/Work</option>
-        <option value="health">Health</option>
-        <option value="hobbies">Hobbies/Interests</option>
-        <option value="finances">Finances</option>
-        <option value="social">Social</option>
-        <option value="home">Home</option>
-        <option value="family">Family</option>
-        <option value="growth">Personal Growth</option>
-      </select>
+      <select id="category-select" aria-label="Category"></select>
       <button id="add-button">Add</button>
     </div>
 
-    <div class="categories">
-      <div class="category career">
-        <h2>Career/Work</h2>
-        <ul id="career-list"></ul>
-      </div>
-
-      <div class="category health">
-        <h2>Health</h2>
-        <ul id="health-list"></ul>
-      </div>
-
-      <div class="category hobbies">
-        <h2>Hobbies/Interests</h2>
-        <ul id="hobbies-list"></ul>
-      </div>
-
-      <div class="category finances">
-        <h2>Finances</h2>
-        <ul id="finances-list"></ul>
-      </div>
-
-      <div class="category social">
-        <h2>Social</h2>
-        <ul id="social-list"></ul>
-      </div>
-
-      <div class="category home">
-        <h2>Home</h2>
-        <ul id="home-list"></ul>
-      </div>
-
-      <div class="category family">
-        <h2>Family</h2>
-        <ul id="family-list"></ul>
-      </div>
-
-      <div class="category growth">
-        <h2>Personal Growth</h2>
-        <ul id="growth-list"></ul>
-      </div>
-    </div>
+    <ul id="task-list"></ul>
 
     <script>
       const CATEGORIES = [
-        "career",
-        "health",
-        "hobbies",
-        "finances",
-        "social",
-        "home",
-        "family",
-        "growth",
+        { slug: "career", label: "Career/Work" },
+        { slug: "finances", label: "Finances" },
+        { slug: "health", label: "Health" },
+        { slug: "hobbies", label: "Hobbies/Interests" },
+        { slug: "family", label: "Family" },
+        { slug: "growth", label: "Personal Growth" },
+        { slug: "home", label: "Home" },
       ];
 
+      const STATUSES = ["active", "awaiting", "done"];
+      const DEFAULT_STATUS = "active";
+      const DEFAULT_LENS = "you";
+
       const STORAGE_KEY = "personal-assistant.tasks.v1";
-      const STORAGE_VERSION = 1;
+      const STORAGE_VERSION = 2;
 
       function newId() {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -208,6 +154,7 @@
       const input = document.querySelector("#task-input");
       const categorySelect = document.querySelector("#category-select");
       const button = document.querySelector("#add-button");
+      const taskListEl = document.querySelector("#task-list");
 
       const tasks = [];
 
@@ -218,15 +165,17 @@
           const parsed = JSON.parse(raw);
           if (!parsed || typeof parsed !== "object") return;
           if (parsed.version !== STORAGE_VERSION) {
-            console.warn(`Ignoring stored data with version ${parsed.version}`);
+            console.warn(`Discarding stored data with version ${parsed.version}`);
+            localStorage.removeItem(STORAGE_KEY);
             return;
           }
           if (!Array.isArray(parsed.tasks)) return;
+          const validSlugs = new Set(CATEGORIES.map((c) => c.slug));
           const valid = parsed.tasks.filter(
             (t) =>
               t &&
               typeof t.text === "string" &&
-              CATEGORIES.includes(t.category),
+              validSlugs.has(t.category),
           );
           tasks.push(...valid);
         } catch (e) {
@@ -242,15 +191,15 @@
       }
 
       function render() {
-        for (const slug of CATEGORIES) {
-          document.querySelector(`#${slug}-list`).innerHTML = "";
-        }
+        taskListEl.innerHTML = "";
         for (const task of tasks) {
-          const list = document.querySelector(`#${task.category}-list`);
-          if (!list) continue;
-
           const item = document.createElement("li");
           item.dataset.id = task.id;
+
+          const chip = document.createElement("span");
+          chip.className = "task-category";
+          const cat = CATEGORIES.find((c) => c.slug === task.category);
+          chip.textContent = cat ? cat.label : task.category;
 
           const textSpan = document.createElement("span");
           textSpan.className = "task-text";
@@ -261,9 +210,10 @@
           deleteBtn.setAttribute("aria-label", "Delete task");
           deleteBtn.textContent = "×";
 
+          item.appendChild(chip);
           item.appendChild(textSpan);
           item.appendChild(deleteBtn);
-          list.appendChild(item);
+          taskListEl.appendChild(item);
         }
       }
 
@@ -275,8 +225,13 @@
           id: newId(),
           text,
           category: categorySelect.value,
+          lens: DEFAULT_LENS,
+          goalId: null,
+          status: DEFAULT_STATUS,
+          deadline: null,
+          notes: "",
           createdAt: new Date().toISOString(),
-          lens: "you",
+          completedAt: null,
         });
 
         input.value = "";
@@ -337,9 +292,7 @@
         editInput.addEventListener("blur", commit);
       }
 
-      const categoriesEl = document.querySelector(".categories");
-
-      categoriesEl.addEventListener("click", (e) => {
+      taskListEl.addEventListener("click", (e) => {
         const li = e.target.closest("li[data-id]");
         if (!li) return;
         const id = li.dataset.id;
@@ -373,6 +326,16 @@
         }
       });
 
+      function populateCategorySelect() {
+        for (const cat of CATEGORIES) {
+          const option = document.createElement("option");
+          option.value = cat.slug;
+          option.textContent = cat.label;
+          categorySelect.appendChild(option);
+        }
+      }
+
+      populateCategorySelect();
       load();
       render();
     </script>

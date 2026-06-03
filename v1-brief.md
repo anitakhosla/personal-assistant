@@ -88,7 +88,7 @@ Anita. Mom is the second lens, also P0 (not stretch).
 
 - **Goal** (optional)
   - Belongs to a Lens (You / Mom)
-  - Has a Category (Career / Finances / Health / Hobbies / Social / Home)
+  - Has a Category (Career / Finances / Health / Hobbies / Family / Personal Growth / Home)
   - Contains many Tasks
   - Never "done" — just retired when no longer relevant
 
@@ -133,7 +133,7 @@ Goals that haven't moved:
   · [Goal name] · 23 days
 
 Last 14 days · category balance:
-  ▓▓▓▓▓░░░░░░░░░  Career / Finances / Health / Hobbies / Social / Home
+  ▓▓▓▓▓░░░░░░░░░  Career / Finances / Health / Hobbies / Family / Personal Growth / Home
 ```
 
 Top: proposed list with reasoning. Middle: lock-in / swap-one. Bottom: ambient signals (stalled goals, category balance). A single tab "Plan" leads to the goal hierarchy and full task pile for deliberate review.
