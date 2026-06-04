@@ -21,7 +21,7 @@
       .capture {
         display: flex;
         gap: 0.5rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
       }
 
       .capture input {
@@ -51,6 +51,50 @@
       }
 
       #task-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+      }
+
+      .goal-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .goal-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .goal-title {
+        flex: 1;
+      }
+
+      .delete-goal-btn {
+        background: transparent;
+        color: #999;
+        border: none;
+        border-radius: 4px;
+        padding: 0 0.5rem;
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+      }
+
+      .delete-goal-btn:hover,
+      .delete-goal-btn:focus-visible {
+        background: #f0f0f0;
+        color: #222;
+        outline: none;
+      }
+
+      .task-rows {
         list-style: none;
         margin: 0;
         padding: 0;
@@ -59,7 +103,7 @@
         gap: 0.5rem;
       }
 
-      #task-list li {
+      .task-rows li {
         display: flex;
         align-items: center;
         gap: 0.75rem;
@@ -67,6 +111,58 @@
         padding: 0.75rem 1rem;
         border-radius: 6px;
         border: 1px solid #e5e5e5;
+      }
+
+      .task-goal-select {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        color: #555;
+        max-width: 11rem;
+      }
+
+      .goal-affordance {
+        font-size: 0.8rem;
+        color: #888;
+        background: transparent;
+        border: none;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .goal-affordance:hover,
+      .goal-affordance:focus-visible {
+        color: #222;
+        background: #f0f0f0;
+        outline: none;
+      }
+
+      @media (hover: hover) {
+        .task-rows li .goal-affordance--in-goal {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .task-rows li:hover .goal-affordance--in-goal,
+        .task-rows li:focus-within .goal-affordance--in-goal {
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+
+      .goal-group[data-goal-id] .goal-title {
+        cursor: text;
+      }
+
+      .empty-note {
+        color: #999;
+        font-style: italic;
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
       }
 
       .task-category {
@@ -119,12 +215,18 @@
     <h1>Personal Assistant</h1>
 
     <div class="capture">
-      <input id="task-input" type="text" placeholder="What's on your mind?" />
-      <select id="category-select" aria-label="Category"></select>
-      <button id="add-button">Add</button>
+      <input id="goal-title-input" type="text" placeholder="Add a goal..." />
+      <select id="goal-category-select" aria-label="Goal category"></select>
+      <button id="add-goal-button">Add Goal</button>
     </div>
 
-    <ul id="task-list"></ul>
+    <div class="capture">
+      <input id="task-input" type="text" placeholder="What's on your mind?" />
+      <select id="category-select" aria-label="Task category"></select>
+      <button id="add-button">Add Task</button>
+    </div>
+
+    <div id="task-list"></div>
 
     <script>
       const CATEGORIES = [
@@ -142,7 +244,7 @@
       const DEFAULT_LENS = "you";
 
       const STORAGE_KEY = "personal-assistant.tasks.v1";
-      const STORAGE_VERSION = 2;
+      const STORAGE_VERSION = 3;
 
       function newId() {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -151,11 +253,42 @@
         return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       }
 
+      function newGoal(title, category) {
+        return {
+          id: newId(),
+          title,
+          category,
+          lens: DEFAULT_LENS,
+          createdAt: new Date().toISOString(),
+          retiredAt: null,
+        };
+      }
+
+      function newTask(text, category, goalId = null) {
+        return {
+          id: newId(),
+          text,
+          category,
+          lens: DEFAULT_LENS,
+          goalId,
+          status: DEFAULT_STATUS,
+          deadline: null,
+          notes: "",
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+        };
+      }
+
+      const goalTitleInput = document.querySelector("#goal-title-input");
+      const goalCategorySelect = document.querySelector("#goal-category-select");
+      const addGoalButton = document.querySelector("#add-goal-button");
+
       const input = document.querySelector("#task-input");
       const categorySelect = document.querySelector("#category-select");
       const button = document.querySelector("#add-button");
       const taskListEl = document.querySelector("#task-list");
 
+      const goals = [];
       const tasks = [];
 
       function load() {
@@ -169,71 +302,200 @@
             localStorage.removeItem(STORAGE_KEY);
             return;
           }
-          if (!Array.isArray(parsed.tasks)) return;
           const validSlugs = new Set(CATEGORIES.map((c) => c.slug));
-          const valid = parsed.tasks.filter(
-            (t) =>
-              t &&
-              typeof t.text === "string" &&
-              validSlugs.has(t.category),
-          );
-          tasks.push(...valid);
+          if (Array.isArray(parsed.goals)) {
+            const validGoals = parsed.goals.filter(
+              (g) =>
+                g &&
+                typeof g.title === "string" &&
+                validSlugs.has(g.category),
+            );
+            goals.push(...validGoals);
+          }
+          if (Array.isArray(parsed.tasks)) {
+            const validTasks = parsed.tasks.filter(
+              (t) =>
+                t &&
+                typeof t.text === "string" &&
+                validSlugs.has(t.category),
+            );
+            tasks.push(...validTasks);
+          }
+          // Any task pointing at a goal that didn't survive validation becomes loose.
+          const validGoalIds = new Set(goals.map((g) => g.id));
+          for (const t of tasks) {
+            if (t.goalId && !validGoalIds.has(t.goalId)) t.goalId = null;
+          }
         } catch (e) {
-          console.error("Failed to load tasks from localStorage", e);
+          console.error("Failed to load from localStorage", e);
         }
       }
 
       function save() {
         localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({ version: STORAGE_VERSION, tasks }),
+          JSON.stringify({ version: STORAGE_VERSION, goals, tasks }),
         );
+      }
+
+      function categoryLabel(slug) {
+        const cat = CATEGORIES.find((c) => c.slug === slug);
+        return cat ? cat.label : slug;
+      }
+
+      function buildCategoryChip(slug) {
+        const chip = document.createElement("span");
+        chip.className = "task-category";
+        chip.textContent = categoryLabel(slug);
+        return chip;
+      }
+
+      function buildInlineGoalSelect(currentGoalId) {
+        const select = document.createElement("select");
+        select.className = "task-goal-select";
+        select.setAttribute("aria-label", "Move to goal");
+
+        const noneOption = document.createElement("option");
+        noneOption.value = "";
+        noneOption.textContent = "(no goal)";
+        select.appendChild(noneOption);
+
+        for (const goal of goals) {
+          const option = document.createElement("option");
+          option.value = goal.id;
+          option.textContent = goal.title;
+          select.appendChild(option);
+        }
+
+        select.value = currentGoalId || "";
+        return select;
+      }
+
+      function buildGoalAffordance(task) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "goal-affordance";
+        if (task.goalId) btn.classList.add("goal-affordance--in-goal");
+        btn.textContent = "+ goal";
+        btn.setAttribute("aria-label", "Move to goal");
+        return btn;
+      }
+
+      function buildTaskLi(task) {
+        const item = document.createElement("li");
+        item.dataset.id = task.id;
+
+        const textSpan = document.createElement("span");
+        textSpan.className = "task-text";
+        textSpan.textContent = task.text;
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "delete-btn";
+        deleteBtn.setAttribute("aria-label", "Delete task");
+        deleteBtn.textContent = "×";
+
+        item.appendChild(buildCategoryChip(task.category));
+        item.appendChild(textSpan);
+        item.appendChild(buildGoalAffordance(task));
+        item.appendChild(deleteBtn);
+        return item;
+      }
+
+      function buildGoalGroup(goal) {
+        const group = document.createElement("div");
+        group.className = "goal-group";
+        group.dataset.goalId = goal.id;
+
+        const header = document.createElement("h2");
+        header.className = "goal-header";
+
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "goal-title";
+        titleSpan.textContent = goal.title;
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "delete-goal-btn";
+        deleteBtn.setAttribute("aria-label", "Delete goal");
+        deleteBtn.textContent = "×";
+
+        header.appendChild(titleSpan);
+        header.appendChild(buildCategoryChip(goal.category));
+        header.appendChild(deleteBtn);
+        group.appendChild(header);
+
+        const goalTasks = tasks.filter((t) => t.goalId === goal.id);
+        if (goalTasks.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-note";
+          empty.textContent = "no tasks yet";
+          group.appendChild(empty);
+        } else {
+          const ul = document.createElement("ul");
+          ul.className = "task-rows";
+          for (const task of goalTasks) {
+            ul.appendChild(buildTaskLi(task));
+          }
+          group.appendChild(ul);
+        }
+
+        return group;
+      }
+
+      function buildLooseGroup(looseTasks) {
+        const group = document.createElement("div");
+        group.className = "goal-group";
+
+        const header = document.createElement("h2");
+        header.className = "goal-header";
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "goal-title";
+        titleSpan.textContent = goals.length === 0 ? "Tasks" : "Loose tasks";
+        header.appendChild(titleSpan);
+        group.appendChild(header);
+
+        if (looseTasks.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-note";
+          empty.textContent = "no tasks yet";
+          group.appendChild(empty);
+        } else {
+          const ul = document.createElement("ul");
+          ul.className = "task-rows";
+          for (const task of looseTasks) {
+            ul.appendChild(buildTaskLi(task));
+          }
+          group.appendChild(ul);
+        }
+
+        return group;
       }
 
       function render() {
         taskListEl.innerHTML = "";
-        for (const task of tasks) {
-          const item = document.createElement("li");
-          item.dataset.id = task.id;
 
-          const chip = document.createElement("span");
-          chip.className = "task-category";
-          const cat = CATEGORIES.find((c) => c.slug === task.category);
-          chip.textContent = cat ? cat.label : task.category;
-
-          const textSpan = document.createElement("span");
-          textSpan.className = "task-text";
-          textSpan.textContent = task.text;
-
-          const deleteBtn = document.createElement("button");
-          deleteBtn.className = "delete-btn";
-          deleteBtn.setAttribute("aria-label", "Delete task");
-          deleteBtn.textContent = "×";
-
-          item.appendChild(chip);
-          item.appendChild(textSpan);
-          item.appendChild(deleteBtn);
-          taskListEl.appendChild(item);
+        for (const goal of goals) {
+          taskListEl.appendChild(buildGoalGroup(goal));
         }
+
+        const looseTasks = tasks.filter((t) => !t.goalId);
+        if (looseTasks.length > 0 || goals.length === 0) {
+          taskListEl.appendChild(buildLooseGroup(looseTasks));
+        }
+      }
+
+      function addGoal() {
+        const title = goalTitleInput.value.trim();
+        if (title === "") return;
+        goals.push(newGoal(title, goalCategorySelect.value));
+        goalTitleInput.value = "";
+        save();
+        render();
       }
 
       function addTask() {
         const text = input.value.trim();
         if (text === "") return;
-
-        tasks.push({
-          id: newId(),
-          text,
-          category: categorySelect.value,
-          lens: DEFAULT_LENS,
-          goalId: null,
-          status: DEFAULT_STATUS,
-          deadline: null,
-          notes: "",
-          createdAt: new Date().toISOString(),
-          completedAt: null,
-        });
-
+        tasks.push(newTask(text, categorySelect.value));
         input.value = "";
         save();
         render();
@@ -292,28 +554,189 @@
         editInput.addEventListener("blur", commit);
       }
 
+      function deleteGoal(goalId) {
+        const goal = goals.find((g) => g.id === goalId);
+        if (!goal) return;
+        const orphanCount = tasks.filter((t) => t.goalId === goalId).length;
+        const msg =
+          orphanCount > 0
+            ? `Delete goal "${goal.title}"? Its ${orphanCount} task${orphanCount === 1 ? "" : "s"} will become loose tasks.`
+            : `Delete goal "${goal.title}"?`;
+        if (!confirm(msg)) return;
+        for (const t of tasks) if (t.goalId === goalId) t.goalId = null;
+        const idx = goals.findIndex((g) => g.id === goalId);
+        if (idx !== -1) goals.splice(idx, 1);
+        save();
+        render();
+      }
+
+      function startGoalTitleEdit(goal, titleSpan) {
+        const editInput = document.createElement("input");
+        editInput.type = "text";
+        editInput.className = "task-edit";
+        editInput.value = goal.title;
+
+        titleSpan.replaceWith(editInput);
+        editInput.focus();
+        editInput.select();
+
+        let done = false;
+
+        function restoreSpan() {
+          const newSpan = document.createElement("span");
+          newSpan.className = "goal-title";
+          newSpan.textContent = goal.title;
+          editInput.replaceWith(newSpan);
+        }
+
+        function commit() {
+          if (done) return;
+          done = true;
+          const newTitle = editInput.value.trim();
+          if (newTitle && newTitle !== goal.title) {
+            goal.title = newTitle;
+            save();
+          }
+          restoreSpan();
+        }
+
+        function cancel() {
+          if (done) return;
+          done = true;
+          restoreSpan();
+        }
+
+        editInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        });
+
+        editInput.addEventListener("blur", commit);
+      }
+
+      function startGoalEdit(task, affordanceBtn) {
+        const select = buildInlineGoalSelect(task.goalId);
+        affordanceBtn.replaceWith(select);
+        select.focus();
+        if (typeof select.showPicker === "function") {
+          try {
+            select.showPicker();
+          } catch (e) {
+            // Some browsers/contexts disallow showPicker; focus is enough.
+          }
+        }
+
+        let done = false;
+
+        function commit(newGoalId) {
+          if (done) return;
+          done = true;
+          moveTaskToGoal(task.id, newGoalId);
+        }
+
+        function cancel() {
+          if (done) return;
+          done = true;
+          if (!select.isConnected) return;
+          const newAffordance = buildGoalAffordance(task);
+          select.replaceWith(newAffordance);
+        }
+
+        select.addEventListener("change", () => {
+          commit(select.value || null);
+        });
+
+        select.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        });
+
+        // Defer blur cancel so the change handler (if any) fires first;
+        // some browsers fire blur before change when the user picks an option.
+        select.addEventListener("blur", () => {
+          setTimeout(cancel, 0);
+        });
+      }
+
+      function moveTaskToGoal(taskId, newGoalId) {
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        task.goalId = newGoalId;
+        if (newGoalId) {
+          const goal = goals.find((g) => g.id === newGoalId);
+          if (goal) task.category = goal.category;
+        }
+        save();
+        render();
+      }
+
+      function deleteTask(id) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return;
+        const preview =
+          task.text.length > 80 ? task.text.slice(0, 77) + "..." : task.text;
+        if (!confirm(`Delete: "${preview}"?`)) return;
+        const idx = tasks.findIndex((t) => t.id === id);
+        if (idx !== -1) {
+          tasks.splice(idx, 1);
+          save();
+          render();
+        }
+      }
+
       taskListEl.addEventListener("click", (e) => {
+        if (e.target.classList.contains("goal-title")) {
+          const group = e.target.closest("[data-goal-id]");
+          if (!group) return;
+          const goal = goals.find((g) => g.id === group.dataset.goalId);
+          if (!goal) return;
+          startGoalTitleEdit(goal, e.target);
+          return;
+        }
+
+        if (e.target.classList.contains("goal-affordance")) {
+          const li = e.target.closest("li[data-id]");
+          if (!li) return;
+          const task = tasks.find((t) => t.id === li.dataset.id);
+          if (!task) return;
+          startGoalEdit(task, e.target);
+          return;
+        }
+
+        if (e.target.classList.contains("delete-goal-btn")) {
+          const group = e.target.closest("[data-goal-id]");
+          if (!group) return;
+          deleteGoal(group.dataset.goalId);
+          return;
+        }
+
         const li = e.target.closest("li[data-id]");
         if (!li) return;
         const id = li.dataset.id;
 
         if (e.target.classList.contains("delete-btn")) {
-          const task = tasks.find((t) => t.id === id);
-          if (!task) return;
-          const preview =
-            task.text.length > 80 ? task.text.slice(0, 77) + "..." : task.text;
-          if (!confirm(`Delete: "${preview}"?`)) return;
-          const idx = tasks.findIndex((t) => t.id === id);
-          if (idx !== -1) {
-            tasks.splice(idx, 1);
-            save();
-            render();
-          }
+          deleteTask(id);
           return;
         }
 
         if (e.target.classList.contains("task-text")) {
           startEdit(li, id, e.target);
+        }
+      });
+
+      addGoalButton.addEventListener("click", addGoal);
+
+      goalTitleInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addGoal();
         }
       });
 
@@ -326,16 +749,18 @@
         }
       });
 
-      function populateCategorySelect() {
-        for (const cat of CATEGORIES) {
-          const option = document.createElement("option");
-          option.value = cat.slug;
-          option.textContent = cat.label;
-          categorySelect.appendChild(option);
+      function populateCategorySelects() {
+        for (const sel of [categorySelect, goalCategorySelect]) {
+          for (const cat of CATEGORIES) {
+            const option = document.createElement("option");
+            option.value = cat.slug;
+            option.textContent = cat.label;
+            sel.appendChild(option);
+          }
         }
       }
 
-      populateCategorySelect();
+      populateCategorySelects();
       load();
       render();
     </script>
