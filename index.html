@@ -50,6 +50,45 @@
         cursor: pointer;
       }
 
+      .capture-meta {
+        display: flex;
+        gap: 1rem;
+        margin: -0.5rem 0 1.5rem 0.25rem;
+        font-size: 0.8rem;
+        color: #888;
+      }
+
+      .meta-picker {
+        background: transparent;
+        border: none;
+        color: #888;
+        padding: 0;
+        font-family: inherit;
+        font-size: inherit;
+        text-decoration: underline dotted;
+        text-underline-offset: 3px;
+        cursor: pointer;
+        max-width: 14rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .meta-picker:hover,
+      .meta-picker:focus-visible {
+        color: #222;
+      }
+
+      .meta-inline-select {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        color: #333;
+        max-width: 14rem;
+      }
+
       #task-list {
         display: flex;
         flex-direction: column;
@@ -91,7 +130,6 @@
       .delete-goal-btn:focus-visible {
         background: #f0f0f0;
         color: #222;
-        outline: none;
       }
 
       .task-rows {
@@ -138,7 +176,6 @@
       .goal-affordance:focus-visible {
         color: #222;
         background: #f0f0f0;
-        outline: none;
       }
 
       @media (hover: hover) {
@@ -176,6 +213,12 @@
         white-space: nowrap;
       }
 
+      .task-category--null {
+        background: transparent;
+        border: 1px dashed #ccc;
+        color: #aaa;
+      }
+
       .task-text {
         flex: 1;
         cursor: text;
@@ -206,7 +249,6 @@
       .delete-btn:focus-visible {
         background: #f0f0f0;
         color: #222;
-        outline: none;
       }
     </style>
   </head>
@@ -222,9 +264,10 @@
 
     <div class="capture">
       <input id="task-input" type="text" placeholder="What's on your mind?" />
-      <select id="category-select" aria-label="Task category"></select>
       <button id="add-button">Add Task</button>
     </div>
+
+    <div id="capture-meta" class="capture-meta"></div>
 
     <div id="task-list"></div>
 
@@ -243,8 +286,9 @@
       const DEFAULT_STATUS = "active";
       const DEFAULT_LENS = "you";
 
-      const STORAGE_KEY = "personal-assistant.tasks.v1";
-      const STORAGE_VERSION = 3;
+      const STORAGE_KEY = "personal-assistant.state.v4";
+      const LEGACY_STORAGE_KEYS = ["personal-assistant.tasks.v1"];
+      const STORAGE_VERSION = 4;
 
       function newId() {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -284,14 +328,21 @@
       const addGoalButton = document.querySelector("#add-goal-button");
 
       const input = document.querySelector("#task-input");
-      const categorySelect = document.querySelector("#category-select");
       const button = document.querySelector("#add-button");
+      const captureMetaEl = document.querySelector("#capture-meta");
       const taskListEl = document.querySelector("#task-list");
 
       const goals = [];
       const tasks = [];
 
+      // Capture meta state: what the next added task will inherit.
+      let pendingGoalId = null;
+      let pendingCategory = null;
+
       function load() {
+        for (const oldKey of LEGACY_STORAGE_KEYS) {
+          localStorage.removeItem(oldKey);
+        }
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
         try {
@@ -317,11 +368,11 @@
               (t) =>
                 t &&
                 typeof t.text === "string" &&
-                validSlugs.has(t.category),
+                (t.category === null || validSlugs.has(t.category)),
             );
             tasks.push(...validTasks);
           }
-          // Any task pointing at a goal that didn't survive validation becomes loose.
+          // Any task pointing at a goal that didn't survive validation becomes standalone.
           const validGoalIds = new Set(goals.map((g) => g.id));
           for (const t of tasks) {
             if (t.goalId && !validGoalIds.has(t.goalId)) t.goalId = null;
@@ -346,6 +397,11 @@
       function buildCategoryChip(slug) {
         const chip = document.createElement("span");
         chip.className = "task-category";
+        if (slug == null) {
+          chip.classList.add("task-category--null");
+          chip.textContent = "—";
+          return chip;
+        }
         chip.textContent = categoryLabel(slug);
         return chip;
       }
@@ -441,7 +497,7 @@
         return group;
       }
 
-      function buildLooseGroup(looseTasks) {
+      function buildStandaloneGroup(standaloneTasks) {
         const group = document.createElement("div");
         group.className = "goal-group";
 
@@ -449,11 +505,11 @@
         header.className = "goal-header";
         const titleSpan = document.createElement("span");
         titleSpan.className = "goal-title";
-        titleSpan.textContent = goals.length === 0 ? "Tasks" : "Loose tasks";
+        titleSpan.textContent = goals.length === 0 ? "Tasks" : "Standalone";
         header.appendChild(titleSpan);
         group.appendChild(header);
 
-        if (looseTasks.length === 0) {
+        if (standaloneTasks.length === 0) {
           const empty = document.createElement("div");
           empty.className = "empty-note";
           empty.textContent = "no tasks yet";
@@ -461,7 +517,7 @@
         } else {
           const ul = document.createElement("ul");
           ul.className = "task-rows";
-          for (const task of looseTasks) {
+          for (const task of standaloneTasks) {
             ul.appendChild(buildTaskLi(task));
           }
           group.appendChild(ul);
@@ -477,11 +533,137 @@
           taskListEl.appendChild(buildGoalGroup(goal));
         }
 
-        const looseTasks = tasks.filter((t) => !t.goalId);
-        if (looseTasks.length > 0 || goals.length === 0) {
-          taskListEl.appendChild(buildLooseGroup(looseTasks));
+        const standaloneTasks = tasks.filter((t) => !t.goalId);
+        if (standaloneTasks.length > 0 || goals.length === 0) {
+          taskListEl.appendChild(buildStandaloneGroup(standaloneTasks));
         }
       }
+
+      // Capture-meta picker (goal + category pickers below the task input).
+
+      function buildMetaPicker(kind) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "meta-picker";
+        btn.dataset.field = kind;
+        if (kind === "goal") {
+          const goal = pendingGoalId
+            ? goals.find((g) => g.id === pendingGoalId)
+            : null;
+          btn.textContent = goal ? `goal: ${goal.title}` : "goal: —";
+          btn.setAttribute(
+            "aria-label",
+            goal
+              ? `Goal for next task: ${goal.title}. Click to change.`
+              : "Set goal for next task",
+          );
+        } else {
+          btn.textContent = pendingCategory
+            ? `in: ${categoryLabel(pendingCategory)}`
+            : "in: —";
+          btn.setAttribute(
+            "aria-label",
+            pendingCategory
+              ? `Category for next task: ${categoryLabel(pendingCategory)}. Click to change.`
+              : "Set category for next task",
+          );
+        }
+        return btn;
+      }
+
+      function refreshCaptureMeta() {
+        // Defensive: if pendingGoalId points at a deleted goal, drop it.
+        if (pendingGoalId && !goals.find((g) => g.id === pendingGoalId)) {
+          pendingGoalId = null;
+        }
+        captureMetaEl.innerHTML = "";
+        captureMetaEl.appendChild(buildMetaPicker("goal"));
+        // When a goal is set, category is inherited — don't offer to override.
+        if (!pendingGoalId) {
+          captureMetaEl.appendChild(buildMetaPicker("category"));
+        }
+      }
+
+      function openMetaInlineSelect(triggerBtn, kind) {
+        const select = document.createElement("select");
+        select.className = "meta-inline-select";
+        select.setAttribute(
+          "aria-label",
+          kind === "goal" ? "Select goal" : "Select category",
+        );
+
+        const noneOption = document.createElement("option");
+        noneOption.value = "";
+        noneOption.textContent = kind === "goal" ? "(no goal)" : "(none)";
+        select.appendChild(noneOption);
+
+        if (kind === "goal") {
+          for (const goal of goals) {
+            const option = document.createElement("option");
+            option.value = goal.id;
+            option.textContent = goal.title;
+            select.appendChild(option);
+          }
+          select.value = pendingGoalId || "";
+        } else {
+          for (const cat of CATEGORIES) {
+            const option = document.createElement("option");
+            option.value = cat.slug;
+            option.textContent = cat.label;
+            select.appendChild(option);
+          }
+          select.value = pendingCategory || "";
+        }
+
+        triggerBtn.replaceWith(select);
+        select.focus();
+        if (typeof select.showPicker === "function") {
+          try {
+            select.showPicker();
+          } catch (e) {
+            // Some browsers/contexts disallow showPicker; focus is enough.
+          }
+        }
+
+        let done = false;
+
+        function commit() {
+          if (done) return;
+          done = true;
+          const v = select.value || null;
+          if (kind === "goal") {
+            pendingGoalId = v;
+            // Goal owns category — clear any stale pendingCategory so toggling
+            // goal off doesn't surprise with a leftover "in: X".
+            if (v) pendingCategory = null;
+          } else {
+            pendingCategory = v;
+          }
+          refreshCaptureMeta();
+        }
+
+        function cancel() {
+          if (done) return;
+          done = true;
+          if (!select.isConnected) return;
+          refreshCaptureMeta();
+        }
+
+        select.addEventListener("change", commit);
+        select.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        });
+        // Defer blur so change fires first (Safari/Chrome blur-before-change race).
+        select.addEventListener("blur", () => setTimeout(cancel, 0));
+      }
+
+      captureMetaEl.addEventListener("click", (e) => {
+        if (!e.target.classList.contains("meta-picker")) return;
+        openMetaInlineSelect(e.target, e.target.dataset.field);
+      });
 
       function addGoal() {
         const title = goalTitleInput.value.trim();
@@ -495,8 +677,23 @@
       function addTask() {
         const text = input.value.trim();
         if (text === "") return;
-        tasks.push(newTask(text, categorySelect.value));
+
+        // Goal wins on category: standalone tasks keep pendingCategory (may be null);
+        // goal-attached tasks inherit the goal's category.
+        let category = pendingCategory;
+        let goalIdToUse = pendingGoalId;
+        if (pendingGoalId) {
+          const goal = goals.find((g) => g.id === pendingGoalId);
+          if (goal) category = goal.category;
+          else goalIdToUse = null;
+        }
+
+        tasks.push(newTask(text, category, goalIdToUse));
+
         input.value = "";
+        pendingGoalId = null;
+        pendingCategory = null;
+        refreshCaptureMeta();
         save();
         render();
       }
@@ -560,12 +757,16 @@
         const orphanCount = tasks.filter((t) => t.goalId === goalId).length;
         const msg =
           orphanCount > 0
-            ? `Delete goal "${goal.title}"? Its ${orphanCount} task${orphanCount === 1 ? "" : "s"} will become loose tasks.`
+            ? `Delete goal "${goal.title}"? Its ${orphanCount} task${orphanCount === 1 ? "" : "s"} will become standalone.`
             : `Delete goal "${goal.title}"?`;
         if (!confirm(msg)) return;
         for (const t of tasks) if (t.goalId === goalId) t.goalId = null;
         const idx = goals.findIndex((g) => g.id === goalId);
         if (idx !== -1) goals.splice(idx, 1);
+        if (pendingGoalId === goalId) {
+          pendingGoalId = null;
+          refreshCaptureMeta();
+        }
         save();
         render();
       }
@@ -749,19 +950,18 @@
         }
       });
 
-      function populateCategorySelects() {
-        for (const sel of [categorySelect, goalCategorySelect]) {
-          for (const cat of CATEGORIES) {
-            const option = document.createElement("option");
-            option.value = cat.slug;
-            option.textContent = cat.label;
-            sel.appendChild(option);
-          }
+      function populateGoalCategorySelect() {
+        for (const cat of CATEGORIES) {
+          const option = document.createElement("option");
+          option.value = cat.slug;
+          option.textContent = cat.label;
+          goalCategorySelect.appendChild(option);
         }
       }
 
-      populateCategorySelects();
+      populateGoalCategorySelect();
       load();
+      refreshCaptureMeta();
       render();
     </script>
   </body>
